@@ -1,5 +1,8 @@
 > ⚠️ PathWatch is currently in active development.
 
+<img width="2928" height="1550" alt="image" src="https://github.com/user-attachments/assets/cbac1492-cc9f-4d53-8cc7-1c6f30bb0f10" />
+
+
 # PathWatch
 
 API monitoring and analytics platform built with a modern monorepo architecture.
