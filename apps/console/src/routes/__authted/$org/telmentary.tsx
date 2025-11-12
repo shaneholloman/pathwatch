@@ -9,21 +9,11 @@ import {
   Settings2,
   TriangleAlert,
   BarChart3,
+  Activity,
 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
-
-type ProjectSummary = {
-  slug: string;
-  name: string;
-  orgSlug: string;
-  orgName: string;
-  status: string;
-  updatedAt: string;
-  metrics: {
-    errors: number;
-    p99: string;
-  };
-};
+import { useEffect, useRef, useState } from 'react';
+import { useProjectsStore } from '@/stores/projects-store';
+import { useSession } from '@/lib/auth-client';
 
 export const Route = createFileRoute('/__authted/$org/telmentary')({
   component: RouteComponent,
@@ -32,110 +22,18 @@ export const Route = createFileRoute('/__authted/$org/telmentary')({
 function RouteComponent() {
   const { pathname } = useLocation();
   const navigate = useNavigate();
+  const { org } = Route.useParams();
   const [isPickerOpen, setPickerOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement | null>(null);
 
-  const projects = useMemo(
-    (): ProjectSummary[] => [
-      {
-        slug: 'plaything',
-        name: 'Plaything',
-        orgSlug: 'logbase',
-        orgName: 'Logbase',
-        status: 'Active',
-        updatedAt: '2025-10-12T17:24:00.000Z',
-        metrics: {
-          errors: 124,
-          p99: '612ms',
-        },
-      },
-      {
-        slug: 'relayx',
-        name: 'RelayX',
-        orgSlug: 'logbase',
-        orgName: 'Logbase',
-        status: 'Active',
-        updatedAt: '2025-10-10T08:12:00.000Z',
-        metrics: {
-          errors: 42,
-          p99: '428ms',
-        },
-      },
-      {
-        slug: 'wayfinder',
-        name: 'Wayfinder',
-        orgSlug: 'logbase',
-        orgName: 'Logbase',
-        status: 'On Hold',
-        updatedAt: '2025-09-28T21:45:00.000Z',
-        metrics: {
-          errors: 0,
-          p99: '—',
-        },
-      },
-    ],
-    []
-  );
+  const { data: session } = useSession();
+  const { projects, isLoading, fetchProjects } = useProjectsStore();
 
-  const pathSegments = pathname.split('/').filter(Boolean);
-  const telmentaryIndex = pathSegments.indexOf('telmentary');
-  const projectSlugFromPath =
-    telmentaryIndex > -1 ? pathSegments[telmentaryIndex + 1] : projects[0]?.slug;
-
-  const activeProject = projects.find((item) => item.slug === projectSlugFromPath) ?? projects[0];
-
-  const links = [
-    {
-      name: 'Logs',
-      path: '/$org/telmentary/$projectId/logs',
-      icon: <BetweenHorizonalStart size={16} />,
-    },
-    {
-      name: 'Analytics',
-      path: '/$org/telmentary/$projectId/analytics',
-      icon: <BarChart3 size={16} />,
-    },
-    {
-      name: 'Alerts',
-      path: '/$org/telmentary/$projectId/alerts',
-      icon: <TriangleAlert size={16} />,
-    },
-    {
-      name: 'Settings',
-      path: '/$org/telmentary/$projectId/settings',
-      icon: <Settings2 size={16} />,
-    },
-  ];
-
-  const isLinkActive = (linkPath: string) => {
-    if (!activeProject) {
-      return false;
+  useEffect(() => {
+    if (session?.user) {
+      fetchProjects(org);
     }
-    const resolvedPath = linkPath
-      .replace('$org', activeProject.orgSlug)
-      .replace('$projectId', activeProject.slug);
-    return pathname === resolvedPath;
-  };
-
-  const handleSelectProject = (project: (typeof projects)[number]) => {
-    if (!project || project.slug === activeProject?.slug) {
-      setPickerOpen(false);
-      return;
-    }
-
-    navigate({
-      to: '/$org/telmentary/$projectId/logs',
-      params: {
-        org: project.orgSlug,
-        projectId: project.slug,
-      },
-    });
-    setPickerOpen(false);
-  };
-
-  if (!activeProject) {
-    return null;
-  }
+  }, [org, session, fetchProjects]);
 
   useEffect(() => {
     if (!isPickerOpen) {
@@ -163,6 +61,77 @@ function RouteComponent() {
     };
   }, [isPickerOpen]);
 
+  const pathSegments = pathname.split('/').filter(Boolean);
+  const telmentaryIndex = pathSegments.indexOf('telmentary');
+  const projectSlugFromPath =
+    telmentaryIndex > -1 ? pathSegments[telmentaryIndex + 1] : projects[0]?.slug;
+
+  const activeProject = projects.find((item) => item.slug === projectSlugFromPath) ?? projects[0];
+
+  const links = [
+    {
+      name: 'Logs',
+      path: '/$org/telmentary/$projectId/logs',
+      icon: <BetweenHorizonalStart size={16} />,
+    },
+    {
+      name: 'Traces',
+      path: '/$org/telmentary/$projectId/traces',
+      icon: <Activity size={16} />,
+    },
+    {
+      name: 'Analytics',
+      path: '/$org/telmentary/$projectId/analytics',
+      icon: <BarChart3 size={16} />,
+    },
+    {
+      name: 'Alerts',
+      path: '/$org/telmentary/$projectId/alerts',
+      icon: <TriangleAlert size={16} />,
+    },
+    {
+      name: 'Settings',
+      path: '/$org/telmentary/$projectId/settings',
+      icon: <Settings2 size={16} />,
+    },
+  ];
+
+  const isLinkActive = (linkPath: string) => {
+    if (!activeProject) {
+      return false;
+    }
+    const resolvedPath = linkPath.replace('$org', org).replace('$projectId', activeProject.slug);
+    return pathname === resolvedPath;
+  };
+
+  const handleSelectProject = (project: (typeof projects)[number]) => {
+    if (!project || project.slug === activeProject?.slug) {
+      setPickerOpen(false);
+      return;
+    }
+
+    navigate({
+      to: '/$org/telmentary/$projectId/logs',
+      params: {
+        org: org,
+        projectId: project.slug,
+      },
+    });
+    setPickerOpen(false);
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <p className="text-gray-400">Loading projects...</p>
+      </div>
+    );
+  }
+
+  if (!activeProject) {
+    return null;
+  }
+
   return (
     <div className="flex h-full overflow-hidden">
       <aside className="w-80 h-full border border-gray-800 relative flex-shrink-0 bg-black/40">
@@ -189,9 +158,7 @@ function RouteComponent() {
               </span>
             </Button>
 
-            <p className="mt-2 text-[10px] uppercase tracking-[0.35em] text-gray-600">
-              {activeProject.orgName}
-            </p>
+            <p className="mt-2 text-[10px] uppercase tracking-[0.35em] text-gray-600">{org}</p>
 
             {isPickerOpen ? (
               <div className="absolute left-0 right-0 top-15 z-20 mt-2 overflow-hidden rounded border border-gray-800 bg-black shadow-2xl">
@@ -211,22 +178,24 @@ function RouteComponent() {
                             <div>
                               <p className="text-sm font-medium">{project.name}</p>
                               <p className="text-[11px] uppercase tracking-[0.3em] text-gray-500">
-                                {project.orgName}
+                                {org}
                               </p>
                             </div>
                             <span className="inline-flex items-center gap-1 text-xs text-emerald-300">
-                              <BadgeCheck size={12} /> {project.status}
+                              <BadgeCheck size={12} /> {project.status || 'Active'}
                             </span>
                           </div>
                           <div className="mt-2 flex items-center justify-end text-[11px] uppercase tracking-[0.3em] text-gray-500">
                             <span>
-                              {new Intl.DateTimeFormat('en-GB', {
-                                day: '2-digit',
-                                month: 'short',
-                                hour: '2-digit',
-                                minute: '2-digit',
-                                hour12: false,
-                              }).format(new Date(project.updatedAt))}
+                              {project.updated_at
+                                ? new Intl.DateTimeFormat('en-GB', {
+                                    day: '2-digit',
+                                    month: 'short',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: false,
+                                  }).format(new Date(project.updated_at))
+                                : '—'}
                             </span>
                           </div>
                         </button>
@@ -241,7 +210,7 @@ function RouteComponent() {
           <div className="mt-4 flex items-center text-xs text-gray-400">
             <span className="inline-flex items-center gap-1 text-emerald-300">
               <BadgeCheck size={14} />
-              {activeProject.status}
+              {activeProject.status || 'Active'}
             </span>
           </div>
 
@@ -250,14 +219,16 @@ function RouteComponent() {
               <Clock4 size={12} /> Updated
             </span>
             <span className="text-gray-400">
-              {new Intl.DateTimeFormat('en-GB', {
-                day: '2-digit',
-                month: 'short',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit',
-                hour12: false,
-              }).format(new Date(activeProject.updatedAt))}
+              {activeProject.updated_at
+                ? new Intl.DateTimeFormat('en-GB', {
+                    day: '2-digit',
+                    month: 'short',
+                    year: 'numeric',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false,
+                  }).format(new Date(activeProject.updated_at))
+                : '—'}
             </span>
           </div>
         </div>
@@ -268,11 +239,11 @@ function RouteComponent() {
             <div className="grid grid-cols-2 gap-2 text-xs">
               <div className="rounded border border-gray-800 bg-black/30 p-2">
                 <p className="text-[10px] uppercase tracking-[0.3em] text-gray-500">Errors</p>
-                <p className="mt-1 text-base text-white">{activeProject.metrics.errors}</p>
+                <p className="mt-1 text-base text-white">{activeProject.metrics?.errors || 0}</p>
               </div>
               <div className="rounded border border-gray-800 bg-black/30 p-2">
                 <p className="text-[10px] uppercase tracking-[0.3em] text-gray-500">P99 latency</p>
-                <p className="mt-1 text-base text-white">{activeProject.metrics.p99}</p>
+                <p className="mt-1 text-base text-white">{activeProject.metrics?.p99 || '—'}</p>
               </div>
             </div>
           </section>
@@ -286,7 +257,7 @@ function RouteComponent() {
                   key={link.name}
                   to={link.path}
                   params={{
-                    org: activeProject.orgSlug,
+                    org: org,
                     projectId: activeProject.slug,
                   }}
                 >
@@ -296,7 +267,7 @@ function RouteComponent() {
                       showBrackets={isActive}
                       intent="ghost"
                       size="sm"
-                      className={`justify-start gap-3 px-3 ${
+                      className={`justify-start w-full gap-3 px-3 ${
                         isActive ? 'bg-white/10 text-white border-gray-700' : 'text-gray-400'
                       }`}
                     >
